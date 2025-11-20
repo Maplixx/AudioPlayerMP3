@@ -3,28 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Visualizador 3D Final</title>
-    
+    <title>Visualizador 3D Corrigido</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <style>
-        /* --- CSS Global --- */
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent; /* Remove flash azul no toque */
-        }
-
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
         body {
             margin: 0;
-            background-color: #050505;
+            background-color: #000;
             color: white;
             font-family: sans-serif;
-            overflow: hidden; /* Previne scroll */
-            /* CORREÇÃO CRÍTICA: Permite interação no body, bloqueia só no canvas */
-            touch-action: manipulation; 
+            overflow: hidden;
         }
 
-        /* O Canvas bloqueia gestos para não dar zoom sem querer */
+        /* O TRUQUE: O Canvas começa "fantasma" (cliques passam direto por ele) */
         #canvas-container {
             position: fixed;
             top: 0;
@@ -32,132 +24,82 @@
             width: 100%;
             height: 100%;
             z-index: 1;
-            touch-action: none; 
+            pointer-events: none; /* ESSA LINHA CONSERTA O PROBLEMA */
         }
 
-        /* --- TELA DE INÍCIO (Overlay) --- */
+        /* O Overlay tem que ter z-index máximo */
         #overlay-start {
             position: fixed;
             top: 0;
             left: 0;
-            width: 100%;
-            height: 100%;
+            width: 100vw;
+            height: 100vh;
             background: rgba(0,0,0,0.95);
-            z-index: 9999; /* Muito alto para garantir que está na frente */
+            z-index: 99999; /* Z-index absurdo para garantir */
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            touch-action: auto; /* Garante que o toque funciona aqui */
         }
         
-        /* Botão Gigante e Responsivo */
         .start-btn {
-            padding: 25px 50px;
+            padding: 30px 60px; /* Botão ainda maior */
             border: 3px solid #00ff88;
+            background: #000;
             color: #00ff88;
-            font-size: 1.5rem;
+            font-size: 1.2rem;
             font-weight: bold;
-            background: rgba(0, 255, 136, 0.1);
             border-radius: 50px;
-            cursor: pointer;
-            transition: all 0.2s;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            pointer-events: auto; /* Garante clique */
+            cursor: pointer;
+            /* Garante que o botão receba o clique */
+            pointer-events: auto; 
         }
+        
+        .start-btn:active { background: #00ff88; color: black; }
 
-        .start-btn:active {
-            background: #00ff88;
-            color: #000;
-            transform: scale(0.95);
-        }
-
-        /* --- INTERFACE DO PLAYER --- */
+        /* UI do Player */
         #ui-container {
             position: absolute;
-            bottom: 40px;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 100;
             width: 90%;
             max-width: 400px;
-            background: rgba(20, 20, 20, 0.9);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border: 1px solid #333;
+            background: rgba(30,30,30,0.9);
             border-radius: 20px;
             padding: 20px;
-            display: none; /* Começa oculto */
+            display: none;
             flex-direction: column;
             align-items: center;
             gap: 15px;
+            pointer-events: auto; /* UI clicável */
         }
 
-        #track-name {
-            color: #fff;
-            font-size: 0.9rem;
-            text-align: center;
-            width: 100%;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .controls {
-            display: flex;
-            width: 100%;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .btn-action {
-            background: #333;
-            border: none;
-            color: white;
-            padding: 15px;
-            border-radius: 15px;
-            font-size: 1rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
+        #track-name { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
+        .controls { display: flex; width: 100%; justify-content: space-around; align-items: center; }
         
-        .btn-play {
-            background: #00ff88;
-            color: #000;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            font-size: 1.5rem;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        /* Inputs ocultos */
-        #file-input, #audio-element { display: none; }
-
+        .btn-file { background: #333; padding: 15px 25px; border-radius: 10px; display: flex; gap: 10px; align-items: center; cursor: pointer; }
+        .btn-play { width: 60px; height: 60px; border-radius: 50%; background: #00ff88; border: none; color: black; font-size: 1.5rem; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        
+        #file-input { display: none; }
     </style>
 </head>
 <body>
 
     <div id="overlay-start">
-        <button class="start-btn" onclick="iniciarApp()">TOQUE AQUI</button>
-        <p style="margin-top: 20px; opacity: 0.6;">Necessário para ativar o som</p>
+        <button class="start-btn" id="btn-iniciar">TOQUE PARA INICIAR</button>
+        <p style="margin-top: 15px; color: #aaa;">Necessário para áudio</p>
     </div>
 
     <div id="ui-container">
-        <div id="track-name">Nenhum arquivo selecionado</div>
+        <div id="track-name">Selecione um arquivo...</div>
         <div class="controls">
-            <label for="file-input" class="btn-action">
-                <i class="fas fa-folder"></i> Abrir
-            </label>
-            <input type="file" id="file-input" accept="*/*"> 
-
-            <button class="btn-play" id="play-btn">
-                <i class="fas fa-play"></i>
-            </button>
+            <label for="file-input" class="btn-file"><i class="fas fa-folder"></i> Arquivos</label>
+            <input type="file" id="file-input" accept="*/*">
+            <button class="btn-play" id="btn-play"><i class="fas fa-play"></i></button>
         </div>
     </div>
 
@@ -166,44 +108,98 @@
     <audio id="audio-element" playsinline webkit-playsinline></audio>
 
     <script>
-        // Variáveis de sistema acessíveis globalmente
-        let appStarted = false;
-        let audioContext = null;
-        let audioAnalyser = null;
-        let audioSource = null;
-        let dataArray = null;
+        // --- LÓGICA DE UI (Separada e Segura) ---
+        const overlay = document.getElementById('overlay-start');
+        const ui = document.getElementById('ui-container');
+        const btnIniciar = document.getElementById('btn-iniciar');
+        const btnPlay = document.getElementById('btn-play');
+        const fileInput = document.getElementById('file-input');
+        const audioEl = document.getElementById('audio-element');
+        const canvasDiv = document.getElementById('canvas-container');
         
-        // Função chamada pelo botão (Garantido funcionar)
-        function iniciarApp() {
+        let audioContext, analyser, source, dataArray;
+        let appRodando = false;
+
+        // Função ULTRA segura para iniciar
+        function iniciarSistema() {
             try {
-                // 1. Esconde o botão
-                document.getElementById('overlay-start').style.display = 'none';
-                document.getElementById('ui-container').style.display = 'flex';
-                
-                // 2. Inicializa Audio Context (Requisito iOS)
+                // 1. Cria AudioContext (obrigatório gesto do usuário)
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
                 audioContext = new AudioContext();
                 
-                // Configura analisador
-                audioAnalyser = audioContext.createAnalyser();
-                audioAnalyser.fftSize = 256;
-                dataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+                // 2. Conecta o elemento Audio ao contexto
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
                 
-                // Conecta o elemento <audio> ao WebAudio
-                const audioEl = document.getElementById('audio-element');
-                audioSource = audioContext.createMediaElementSource(audioEl);
-                audioSource.connect(audioAnalyser);
-                audioAnalyser.connect(audioContext.destination);
+                source = audioContext.createMediaElementSource(audioEl);
+                source.connect(analyser);
+                analyser.connect(audioContext.destination);
 
-                appStarted = true;
-
-                // Avisa o script 3D que pode começar (se já tiver carregado)
-                if (window.init3D) window.init3D();
+                // 3. UI Updates
+                overlay.style.display = 'none';
+                ui.style.display = 'flex';
+                
+                // 4. AGORA sim ativamos os cliques no 3D (para poder girar a bola)
+                canvasDiv.style.pointerEvents = 'auto'; 
+                
+                appRodando = true;
+                
+                // Tenta iniciar o 3D se o módulo já carregou
+                if(window.start3D) window.start3D();
 
             } catch (e) {
-                alert("Erro ao iniciar áudio: " + e);
+                alert("Erro: " + e.message);
             }
         }
+
+        // Adiciona listener de clique e toque para garantir
+        btnIniciar.addEventListener('click', iniciarSistema);
+        btnIniciar.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Previne clique fantasma duplo
+            iniciarSistema();
+        });
+
+        // Upload
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            
+            const url = URL.createObjectURL(file);
+            audioEl.src = url;
+            document.getElementById('track-name').innerText = file.name;
+            
+            audioEl.play()
+                .then(() => updateBtn(true))
+                .catch(e => console.log("Autoplay barrado, clique no play"));
+        });
+
+        // Play/Pause
+        btnPlay.addEventListener('click', () => {
+            if(audioContext && audioContext.state === 'suspended') audioContext.resume();
+            
+            if(audioEl.paused) {
+                audioEl.play();
+                updateBtn(true);
+            } else {
+                audioEl.pause();
+                updateBtn(false);
+            }
+        });
+
+        function updateBtn(playing) {
+            const icon = btnPlay.querySelector('i');
+            icon.className = playing ? 'fas fa-pause' : 'fas fa-play';
+        }
+
+        // Exportar dados para o módulo 3D ler
+        window.getAudioData = () => {
+            if(!appRodando || !analyser) return 0;
+            analyser.getByteFrequencyData(dataArray);
+            let sum = 0;
+            for(let i=0; i<10; i++) sum += dataArray[i];
+            return (sum / 10) / 255;
+        };
     </script>
 
     <script type="module">
@@ -215,47 +211,40 @@
         let scene, camera, renderer, sphere, controls;
         let originalPositions;
 
-        // Função principal 3D
-        window.init3D = function() {
-            if (!appStarted) return; // Só roda se o usuário já clicou
-
-            // Cena
+        window.start3D = function() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050505);
-            scene.fog = new THREE.FogExp2(0x050505, 0.02);
+            scene.background = new THREE.Color(0x000000);
 
-            // Câmera
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.z = window.innerWidth < 768 ? 100 : 70; // Longe no mobile, perto no PC
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.z = window.innerWidth < 768 ? 100 : 70;
 
-            // Render
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            // Controles
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
-            controls.enablePan = false;
 
-            // Luz
-            scene.add(new THREE.AmbientLight(0x404040, 2));
+            // Luzes
+            scene.add(new THREE.AmbientLight(0x404040, 3));
             const dl = new THREE.DirectionalLight(0xffffff, 2);
-            dl.position.set(10, 10, 10);
+            dl.position.set(10,10,10);
             scene.add(dl);
 
             // Esfera
             const geo = new THREE.IcosahedronGeometry(18, 30);
             const mat = new THREE.MeshStandardMaterial({
-                color: 0x00ff88,
-                wireframe: true,
-                roughness: 0.1,
-                metalness: 0.5
+                color: 0x00ff88, wireframe: true, roughness: 0.1, metalness: 0.5
             });
             sphere = new THREE.Mesh(geo, mat);
             scene.add(sphere);
             originalPositions = geo.attributes.position.array.slice();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth/window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
 
             animate();
         };
@@ -264,95 +253,39 @@
             requestAnimationFrame(animate);
             
             const time = performance.now();
-            let bass = 0;
+            // Pega o volume direto da função global
+            const bass = window.getAudioData ? window.getAudioData() : 0;
 
-            // Pega dados do áudio se disponível
-            if (appStarted && audioAnalyser) {
-                audioAnalyser.getByteFrequencyData(dataArray);
-                // Média dos graves (primeiros 10 bins)
-                let sum = 0;
-                for(let i=0; i<10; i++) sum += dataArray[i];
-                bass = (sum / 10) / 255; // 0.0 a 1.0
-
-                // Cor
-                sphere.material.color.setHSL(0.3 + (bass * 0.3), 1.0, 0.5);
-            }
+            // Cor
+            sphere.material.color.setHSL(0.3 + (bass * 0.4), 1.0, 0.5);
 
             // Deformação
             const pos = sphere.geometry.attributes.position;
             const v = new THREE.Vector3();
 
-            for (let i = 0; i < pos.count; i++) {
+            for(let i=0; i<pos.count; i++){
                 const ox = originalPositions[i*3];
                 const oy = originalPositions[i*3+1];
                 const oz = originalPositions[i*3+2];
-
                 v.set(ox, oy, oz);
                 v.normalize();
 
-                // Movimento suave (Noise)
-                const n = noise3D(v.x + time*0.0005, v.y + time*0.0005, v.z + time*0.0005);
-                
-                // Raio
-                let dist = 18 + (n * 2);
-                if (bass > 0) {
-                    dist += bass * 8 * (n + 0.5);
-                    dist += bass * 2;
-                }
+                const n = noise3D(v.x+time*0.0005, v.y+time*0.0005, v.z+time*0.0005);
+                let dist = 18 + (n*2);
+                if(bass > 0) dist += bass*10*(n+0.5);
 
                 v.multiplyScalar(dist);
                 pos.setXYZ(i, v.x, v.y, v.z);
             }
-            
-            sphere.geometry.attributes.position.needsUpdate = true;
-            sphere.geometry.computeVertexNormals();
-            
+            pos.needsUpdate = true;
             sphere.rotation.y += 0.002;
+            
             controls.update();
             renderer.render(scene, camera);
         }
 
-        // Resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
-
-        // --- Lógica de Player (Interação) ---
-        const audioEl = document.getElementById('audio-element');
-        const playBtn = document.getElementById('play-btn');
-        const icon = playBtn.querySelector('i');
-
-        // Upload
-        document.getElementById('file-input').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-
-            const url = URL.createObjectURL(file);
-            audioEl.src = url;
-            document.getElementById('track-name').innerText = file.name;
-            
-            audioEl.play().then(() => {
-                icon.className = 'fas fa-pause';
-            }).catch(() => {
-                // Autoplay bloqueado?
-                icon.className = 'fas fa-play';
-            });
-        });
-
-        // Play/Pause
-        playBtn.addEventListener('click', () => {
-            if (audioContext && audioContext.state === 'suspended') audioContext.resume();
-            
-            if (audioEl.paused) {
-                audioEl.play();
-                icon.className = 'fas fa-pause';
-            } else {
-                audioEl.pause();
-                icon.className = 'fas fa-play';
-            }
-        });
+        // Se o usuário já clicou antes do módulo carregar:
+        if(window.appRodando) window.start3D();
     </script>
 </body>
 </html>
