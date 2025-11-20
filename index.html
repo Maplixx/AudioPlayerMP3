@@ -3,424 +3,289 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Visualizador 3D Ultimate</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Visualizador V5 - Modo Compatibilidade</title>
     
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
     <style>
-        /* --- 1. CSS: ESTILO E LAYOUT --- */
-        :root {
-            --primary: #00ff88;
-            --bg: #050505;
-            --glass: rgba(20, 20, 20, 0.8);
-        }
-
-        * {
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent; /* Remove piscar azul no toque */
-            user-select: none; /* Texto não selecionável */
-        }
-
+        /* --- CSS --- */
         body {
             margin: 0;
-            padding: 0;
-            background-color: var(--bg);
+            background-color: #000;
             color: white;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: sans-serif;
             overflow: hidden;
-            touch-action: none; /* Impede scroll e zoom no iOS */
+            touch-action: none;
         }
 
-        /* Debug Log (Aparece só se der erro) */
-        #debug-console {
+        /* Log de Erros Visível */
+        #debug-screen {
             display: none;
-            position: fixed; top: 0; left: 0; width: 100%; height: auto; max-height: 50%;
-            background: rgba(100, 0, 0, 0.9); color: #fff;
-            font-family: monospace; font-size: 10px; padding: 10px;
-            z-index: 999999; overflow-y: auto; pointer-events: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100px;
+            background: rgba(255,0,0,0.8); color: white;
+            z-index: 999999; font-size: 10px; overflow-y: scroll; padding: 5px;
         }
 
-        /* Camada 3D (Fica no fundo) */
-        #canvas-wrapper {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 0; /* Nível mais baixo */
+        /* Tela Inicial */
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 200;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
         }
 
-        /* TELA DE INÍCIO (Overlay) */
-        #start-screen {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg);
-            z-index: 200; /* Acima de tudo */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: opacity 0.5s ease;
-        }
-
-        .btn-neon {
-            padding: 20px 40px;
-            font-size: 1.2rem;
-            color: var(--primary);
-            background: transparent;
-            border: 2px solid var(--primary);
+        /* Botão Gigante */
+        #btn-start {
+            padding: 30px 60px;
+            font-size: 1.5rem;
+            border: 4px solid #00ff88;
+            color: #00ff88;
+            background: black;
             border-radius: 50px;
+            font-weight: bold;
             cursor: pointer;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            font-weight: bold;
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
-            transition: all 0.2s;
+            box-shadow: 0 0 30px rgba(0,255,136,0.3);
         }
-        .btn-neon:active {
-            background: var(--primary);
-            color: black;
-            transform: scale(0.95);
+        #btn-start:active { background: #00ff88; color: black; }
+
+        /* Player UI */
+        #ui {
+            display: none;
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            width: 90%; max-width: 400px;
+            background: rgba(20,20,20,0.9);
+            border-radius: 20px; padding: 20px;
+            z-index: 100;
+            flex-direction: column; gap: 15px; align-items: center;
+            border: 1px solid #333;
         }
 
-        /* INTERFACE DO PLAYER */
-        #player-ui {
-            position: absolute;
-            bottom: 40px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            max-width: 450px;
-            background: var(--glass);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 24px;
-            padding: 20px;
-            z-index: 100; /* Acima do 3D */
-            display: none; /* Oculto no início */
-            flex-direction: column;
-            gap: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-        }
-
-        #track-title {
-            text-align: center;
-            font-size: 0.9rem;
-            color: #ccc;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .controls-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-        }
-
-        /* Botão Arquivo */
+        .controls { display: flex; width: 100%; justify-content: space-between; align-items: center; }
+        
         .btn-file {
-            background: rgba(255,255,255,0.1);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 30px;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-            border: 1px solid rgba(255,255,255,0.05);
+            background: #333; padding: 15px 25px; border-radius: 30px;
+            display: flex; align-items: center; gap: 10px; cursor: pointer;
         }
-
-        /* Botão Play */
+        
         .btn-play {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            border: none;
-            background: var(--primary);
+            width: 60px; height: 60px; border-radius: 50%;
+            background: #00ff88; border: none; font-size: 1.5rem;
+            display: flex; justify-content: center; align-items: center;
             color: black;
-            font-size: 1.4rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
         }
-        .btn-play:active { transform: scale(0.9); }
 
-        /* Input Oculto */
-        input[type="file"] { display: none; }
-
+        #canvas-div { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; }
+        input { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="debug-console"></div>
+    <div id="debug-screen">LOG DE ERROS:<br></div>
 
-    <div id="start-screen">
-        <button class="btn-neon" id="btn-init">Iniciar Sistema</button>
-        <p style="margin-top: 20px; opacity: 0.5; font-size: 0.8rem;">Toque para ativar o áudio</p>
+    <div id="overlay">
+        <button id="btn-start" onclick="startSystem()">INICIAR</button>
     </div>
 
-    <div id="player-ui">
-        <div id="track-title">Nenhum arquivo selecionado</div>
-        <div class="controls-row">
-            <label for="file-upload" class="btn-file">
-                <i class="fas fa-folder-open"></i> Escolher
-            </label>
-            <input type="file" id="file-upload" accept="*/*">
+    <div id="ui">
+        <div id="song-title" style="color:#ccc; font-size:0.9rem;">Selecione um arquivo</div>
+        <div class="controls">
+            <label for="file-in" class="btn-file"><i class="fas fa-folder"></i> Arquivo</label>
+            <input type="file" id="file-in" accept="*/*" onchange="loadFile(this)">
             
-            <button class="btn-play" id="btn-toggle">
+            <button class="btn-play" id="btn-play" onclick="togglePlay()">
                 <i class="fas fa-play"></i>
             </button>
         </div>
     </div>
 
-    <div id="canvas-wrapper"></div>
+    <div id="canvas-div"></div>
+    <audio id="audio" playsinline webkit-playsinline></audio>
 
-    <audio id="audio-source" playsinline webkit-playsinline crossorigin="anonymous"></audio>
-
-    <script type="module">
-        // Importa Three.js (versão estável via CDNJS)
-        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
-        import { OrbitControls } from 'https://unpkg.com/three@0.128.0/examples/jsm/controls/OrbitControls.js';
-
-        // --- SISTEMA DE LOG DE ERROS ---
-        window.onerror = function(message, source, lineno, colno, error) {
-            const consoleDiv = document.getElementById('debug-console');
-            consoleDiv.style.display = 'block';
-            consoleDiv.innerHTML += `[ERRO] ${message} na linha ${lineno}<br>`;
+    <script>
+        // --- SISTEMA DE ERRO (Roda primeiro) ---
+        window.onerror = function(msg, url, line) {
+            const d = document.getElementById('debug-screen');
+            d.style.display = 'block';
+            d.innerHTML += `ERRO: ${msg} (Linha ${line})<br>`;
         };
 
         // --- VARIÁVEIS GLOBAIS ---
-        let audioContext, analyser, sourceNode, dataArray;
-        let scene, camera, renderer, sphere, controls;
-        let isAudioInitialized = false;
-        let originalPositions = [];
+        var audioCtx, analyser, dataArray, source;
+        var scene, camera, renderer, sphere;
+        var originalPositions = []; // Importante: Array normal
+        var isReady = false;
 
-        // Elementos DOM
-        const btnInit = document.getElementById('btn-init');
-        const startScreen = document.getElementById('start-screen');
-        const playerUi = document.getElementById('player-ui');
-        const audioEl = document.getElementById('audio-source');
-        const fileInput = document.getElementById('file-upload');
-        const btnToggle = document.getElementById('btn-toggle');
-        const toggleIcon = btnToggle.querySelector('i');
-        const trackTitle = document.getElementById('track-title');
-
-        // --- PASSO 1: INICIALIZAÇÃO DO 3D (Imediata) ---
-        function init3D() {
+        // --- 1. FUNÇÃO DE INÍCIO (Chamada pelo botão) ---
+        function startSystem() {
             try {
-                scene = new THREE.Scene();
-                scene.background = new THREE.Color(0x050505);
+                // Audio
+                var AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 128;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                // Conexão HTML Audio -> Analyser
+                var audioEl = document.getElementById('audio');
+                source = audioCtx.createMediaElementSource(audioEl);
+                source.connect(analyser);
+                analyser.connect(audioCtx.destination);
+
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+
+                // UI Switch
+                document.getElementById('overlay').style.display = 'none';
+                document.getElementById('ui').style.display = 'flex';
                 
-                // Câmera
-                camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-                // Ajusta distância para mobile vs desktop
-                camera.position.z = window.innerWidth < 768 ? 90 : 60;
+                isReady = true;
 
-                // Render
-                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-                document.getElementById('canvas-wrapper').appendChild(renderer.domElement);
-
-                // Luzes
-                const ambientLight = new THREE.AmbientLight(0x404040, 2);
-                scene.add(ambientLight);
-                const pointLight = new THREE.PointLight(0x00ff88, 1.5);
-                pointLight.position.set(20, 20, 20);
-                scene.add(pointLight);
-
-                // Esfera (Icosaedro)
-                const geometry = new THREE.IcosahedronGeometry(16, 4); // Radius 16, Detail 4
-                const material = new THREE.MeshStandardMaterial({
-                    color: 0x00ff88,
-                    wireframe: true,
-                    roughness: 0.1,
-                    metalness: 0.5
-                });
-
-                sphere = new THREE.Mesh(geometry, material);
-                scene.add(sphere);
-
-                // Salva posições originais para animação
-                const posAttribute = geometry.attributes.position;
-                for (let i = 0; i < posAttribute.count; i++) {
-                    originalPositions.push({
-                        x: posAttribute.getX(i),
-                        y: posAttribute.getY(i),
-                        z: posAttribute.getZ(i)
-                    });
-                }
-
-                // Controles de órbita
-                controls = new OrbitControls(camera, renderer.domElement);
-                controls.enableDamping = true;
-                controls.enablePan = false;
-
-                // Resize Listener
-                window.addEventListener('resize', () => {
-                    camera.aspect = window.innerWidth / window.innerHeight;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(window.innerWidth, window.innerHeight);
-                });
-
-                animate(); // Começa o loop
+                // Iniciar 3D
+                init3D();
 
             } catch (e) {
-                alert("Erro ao iniciar 3D: " + e.message);
+                alert("Erro Fatal: " + e.message);
             }
         }
 
-        // --- PASSO 2: ÁUDIO (Só ativa no clique) ---
-        function initAudio() {
-            if (isAudioInitialized) return;
+        // --- 2. LÓGICA 3D (THREE.JS PURO) ---
+        function init3D() {
+            if(typeof THREE === 'undefined') {
+                alert("Three.js não carregou! Verifique sua internet.");
+                return;
+            }
 
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            audioContext = new AudioContext();
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
 
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 256; // Equilíbrio performance/visual
-            dataArray = new Uint8Array(analyser.frequencyBinCount);
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.z = window.innerWidth < 768 ? 90 : 60;
 
-            // Conecta o elemento <audio> do HTML ao WebAudio
-            sourceNode = audioContext.createMediaElementSource(audioEl);
-            sourceNode.connect(analyser);
-            analyser.connect(audioContext.destination);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('canvas-div').appendChild(renderer.domElement);
 
-            isAudioInitialized = true;
+            // Luzes
+            var light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(10,10,10);
+            scene.add(light);
+            scene.add(new THREE.AmbientLight(0x404040));
+
+            // Esfera
+            var geo = new THREE.IcosahedronGeometry(15, 3);
+            var mat = new THREE.MeshStandardMaterial({
+                color: 0x00ff88,
+                wireframe: true,
+                roughness: 0.5
+            });
+            sphere = new THREE.Mesh(geo, mat);
+            scene.add(sphere);
+
+            // Salvar posições originais (Método Clássico)
+            var pos = geo.attributes.position;
+            for(var i=0; i<pos.count; i++){
+                originalPositions.push({
+                    x: pos.getX(i),
+                    y: pos.getY(i),
+                    z: pos.getZ(i)
+                });
+            }
+
+            animate();
         }
 
-        // --- PASSO 3: LOOP DE ANIMAÇÃO ---
         function animate() {
             requestAnimationFrame(animate);
-            const time = performance.now() * 0.001; // Tempo em segundos
+            
+            var time = Date.now() * 0.002;
+            var bass = 0;
 
-            let bass = 0;
-            let mid = 0;
-
-            // Se áudio está rodando, pega dados
-            if (isAudioInitialized && analyser && !audioEl.paused) {
+            if(isReady && !document.getElementById('audio').paused) {
                 analyser.getByteFrequencyData(dataArray);
-                
-                // Calcula média dos graves (primeiros indices)
-                let bassSum = 0;
-                for(let i=0; i<10; i++) bassSum += dataArray[i];
-                bass = (bassSum / 10) / 255; // 0.0 a 1.0
-
-                // Calcula médios para detalhe
-                let midSum = 0;
-                for(let i=10; i<50; i++) midSum += dataArray[i];
-                mid = (midSum / 40) / 255;
+                // Pega média dos primeiros 5 bins (Grave)
+                var sum = 0;
+                for(var i=0; i<5; i++) sum += dataArray[i];
+                bass = (sum / 5) / 255; 
             }
 
-            // -- EFEITOS VISUAIS --
-            
-            // 1. Cor Dinâmica
-            const hue = 0.35 + (bass * 0.3); // Verde base -> Azulado
-            sphere.material.color.setHSL(hue, 1.0, 0.5);
+            // Animação da Esfera
+            if(sphere) {
+                // Rotação constante
+                sphere.rotation.y += 0.004;
+                sphere.rotation.z += 0.002;
 
-            // 2. Rotação
-            sphere.rotation.y += 0.003 + (bass * 0.01);
-            sphere.rotation.z += 0.001;
+                // Cor
+                var hue = 0.35 + (bass * 0.4);
+                sphere.material.color.setHSL(hue, 1.0, 0.5);
 
-            // 3. Deformação Matemática (Sem Noise library)
-            const posAttribute = sphere.geometry.attributes.position;
-            
-            // Parâmetros da onda
-            const waveHeight = 1.5 + (bass * 8); // Altura da explosão
-            const frequency = 2.0;
-            const speed = 2.0;
-
-            for (let i = 0; i < posAttribute.count; i++) {
-                const orig = originalPositions[i];
+                // Deformação (Matemática Pura)
+                var positions = sphere.geometry.attributes.position;
                 
-                // Cria um padrão de onda complexo usando Seno e Cosseno
-                // Muito mais leve que Perlin Noise
-                const wave = Math.sin(orig.x * 0.2 + time * speed) + 
-                             Math.cos(orig.y * 0.2 + time * speed) + 
-                             Math.sin(orig.z * 0.2 + time * speed);
-                
-                // Normaliza a onda (aprox -1.5 a 1.5) e escala
-                const displacement = (wave * 0.5) * waveHeight;
-                
-                // Adiciona um pulso geral (batida do coração)
-                const pulse = bass * 3.0;
+                for(var i=0; i<positions.count; i++) {
+                    var o = originalPositions[i];
+                    
+                    // Onda simples
+                    var wave = Math.sin(o.x * 0.3 + time) + Math.cos(o.y * 0.3 + time);
+                    
+                    // Intensidade
+                    var amp = 1.0 + (bass * 10.0);
+                    
+                    // Direção normalizada
+                    var len = Math.sqrt(o.x*o.x + o.y*o.y + o.z*o.z);
+                    var nx = o.x/len; var ny = o.y/len; var nz = o.z/len;
+                    
+                    var dist = 15 + (wave * 0.5 * amp) + (bass * 4);
 
-                // Normaliza vetor de posição para aplicar deslocamento
-                const length = Math.sqrt(orig.x*orig.x + orig.y*orig.y + orig.z*orig.z);
-                const nx = orig.x / length;
-                const ny = orig.y / length;
-                const nz = orig.z / length;
-
-                // Raio base (16) + Deslocamento
-                const finalR = 16 + displacement + pulse;
-
-                posAttribute.setXYZ(i, nx * finalR, ny * finalR, nz * finalR);
+                    positions.setXYZ(i, nx*dist, ny*dist, nz*dist);
+                }
+                positions.needsUpdate = true;
             }
-            
-            posAttribute.needsUpdate = true;
 
-            controls.update();
             renderer.render(scene, camera);
         }
 
-        // --- EVENT LISTENERS ---
-
-        // 1. Botão Iniciar (Overlay)
-        btnInit.addEventListener('click', () => {
-            initAudio();
-            if (audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
+        // --- 3. CONTROLES DE ARQUIVO ---
+        function loadFile(input) {
+            var file = input.files[0];
+            if(!file) return;
             
-            // Transição UI
-            startScreen.style.opacity = 0;
-            setTimeout(() => {
-                startScreen.style.display = 'none';
-                playerUi.style.display = 'flex';
-            }, 500);
-        });
+            var url = URL.createObjectURL(file);
+            var audio = document.getElementById('audio');
+            audio.src = url;
+            document.getElementById('song-title').innerText = file.name;
 
-        // 2. Upload de Arquivo
-        fileInput.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
+            audio.play()
+                .then(function(){ updateBtn(true); })
+                .catch(function(){ updateBtn(false); });
+        }
 
-            // Usa createObjectURL para performance no mobile
-            const url = URL.createObjectURL(file);
-            audioEl.src = url;
-            trackTitle.innerText = file.name;
-
-            // Tenta autoplay
-            audioEl.play()
-                .then(() => {
-                    toggleIcon.className = 'fas fa-pause';
-                })
-                .catch(err => {
-                    console.log("Autoplay bloqueado. Usuário deve dar play.");
-                    toggleIcon.className = 'fas fa-play';
-                });
-        });
-
-        // 3. Play / Pause
-        btnToggle.addEventListener('click', () => {
-            // Garante que o contexto está rodando (fix iOS)
-            if (audioContext && audioContext.state === 'suspended') {
-                audioContext.resume();
-            }
-
-            if (audioEl.paused) {
-                audioEl.play();
-                toggleIcon.className = 'fas fa-pause';
+        function togglePlay() {
+            var audio = document.getElementById('audio');
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            
+            if(audio.paused) {
+                audio.play();
+                updateBtn(true);
             } else {
-                audioEl.pause();
-                toggleIcon.className = 'fas fa-play';
+                audio.pause();
+                updateBtn(false);
+            }
+        }
+
+        function updateBtn(isPlaying) {
+            var btn = document.getElementById('btn-play');
+            btn.innerHTML = isPlaying ? '<i class="fas fa-pause"></i>' : '<i class="fas fa-play"></i>';
+        }
+
+        // Resize
+        window.addEventListener('resize', function(){
+            if(camera && renderer) {
+                camera.aspect = window.innerWidth/window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
             }
         });
-
-        // Inicia o Canvas 3D assim que carregar a página
-        init3D();
 
     </script>
 </body>
