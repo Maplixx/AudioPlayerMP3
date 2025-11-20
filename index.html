@@ -3,358 +3,423 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Visualizador 3D Final</title>
+    <title>Visualizador 3D Ultimate</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        
+        /* --- 1. CSS: ESTILO E LAYOUT --- */
+        :root {
+            --primary: #00ff88;
+            --bg: #050505;
+            --glass: rgba(20, 20, 20, 0.8);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent; /* Remove piscar azul no toque */
+            user-select: none; /* Texto não selecionável */
+        }
+
         body {
             margin: 0;
-            background-color: #000;
+            padding: 0;
+            background-color: var(--bg);
             color: white;
-            font-family: 'Segoe UI', sans-serif;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
+            touch-action: none; /* Impede scroll e zoom no iOS */
         }
 
-        /* O Canvas fica no fundo (z-index 0) */
-        #canvas-container {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 0;
-            /* Importante: permite toque para girar a câmera */
-            touch-action: none; 
+        /* Debug Log (Aparece só se der erro) */
+        #debug-console {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: auto; max-height: 50%;
+            background: rgba(100, 0, 0, 0.9); color: #fff;
+            font-family: monospace; font-size: 10px; padding: 10px;
+            z-index: 999999; overflow-y: auto; pointer-events: none;
         }
 
-        /* TELA INICIAL (Overlay) */
-        #overlay {
+        /* Camada 3D (Fica no fundo) */
+        #canvas-wrapper {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); /* Fundo semi-transparente para ver a esfera */
-            z-index: 999;
+            z-index: 0; /* Nível mais baixo */
+        }
+
+        /* TELA DE INÍCIO (Overlay) */
+        #start-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg);
+            z-index: 200; /* Acima de tudo */
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(5px);
-            transition: opacity 0.5s;
+            transition: opacity 0.5s ease;
         }
 
-        .btn-big {
-            padding: 20px 50px;
-            border: 2px solid #00ff88;
-            background: rgba(0,0,0,0.5);
-            color: #00ff88;
+        .btn-neon {
+            padding: 20px 40px;
             font-size: 1.2rem;
+            color: var(--primary);
+            background: transparent;
+            border: 2px solid var(--primary);
             border-radius: 50px;
-            text-transform: uppercase;
             cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
             font-weight: bold;
-            box-shadow: 0 0 20px rgba(0,255,136,0.2);
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+            transition: all 0.2s;
         }
-        .btn-big:active { background: #00ff88; color: black; }
+        .btn-neon:active {
+            background: var(--primary);
+            color: black;
+            transform: scale(0.95);
+        }
 
-        /* PLAYER UI */
-        #ui-layer {
+        /* INTERFACE DO PLAYER */
+        #player-ui {
             position: absolute;
-            bottom: 30px; left: 50%;
+            bottom: 40px;
+            left: 50%;
             transform: translateX(-50%);
-            width: 90%; max-width: 400px;
-            background: rgba(20, 20, 20, 0.85);
-            border: 1px solid rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
+            width: 90%;
+            max-width: 450px;
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
             padding: 20px;
-            z-index: 10;
-            display: none; /* Começa oculto */
+            z-index: 100; /* Acima do 3D */
+            display: none; /* Oculto no início */
             flex-direction: column;
-            gap: 10px;
-            pointer-events: auto;
+            gap: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
         }
 
-        .controls { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-        
+        #track-title {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #ccc;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        /* Botão Arquivo */
         .btn-file {
-            background: #333; color: white; padding: 12px 20px;
-            border-radius: 30px; cursor: pointer; font-size: 0.9rem;
-            display: flex; align-items: center; gap: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.05);
         }
-        
+
+        /* Botão Play */
         .btn-play {
-            width: 55px; height: 55px; border-radius: 50%;
-            background: #00ff88; border: none; font-size: 1.2rem;
-            display: flex; justify-content: center; align-items: center;
-            cursor: pointer; color: #000;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            background: var(--primary);
+            color: black;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
         }
+        .btn-play:active { transform: scale(0.9); }
 
-        #track-name {
-            text-align: center; font-size: 0.9rem; 
-            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            color: #ddd; margin-bottom: 5px;
-        }
+        /* Input Oculto */
+        input[type="file"] { display: none; }
 
-        /* Input invisível */
-        #file-input { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="overlay">
-        <button class="btn-big" id="btn-start">Iniciar Visualizador</button>
-        <p style="margin-top: 15px; opacity: 0.7; font-size: 0.8rem;">Toque para ativar o som</p>
+    <div id="debug-console"></div>
+
+    <div id="start-screen">
+        <button class="btn-neon" id="btn-init">Iniciar Sistema</button>
+        <p style="margin-top: 20px; opacity: 0.5; font-size: 0.8rem;">Toque para ativar o áudio</p>
     </div>
 
-    <div id="ui-layer">
-        <div id="track-name">Escolha uma música ou vídeo...</div>
-        <div class="controls">
-            <label for="file-input" class="btn-file">
-                <i class="fas fa-music"></i> Arquivos
+    <div id="player-ui">
+        <div id="track-title">Nenhum arquivo selecionado</div>
+        <div class="controls-row">
+            <label for="file-upload" class="btn-file">
+                <i class="fas fa-folder-open"></i> Escolher
             </label>
-            <input type="file" id="file-input" accept="*/*">
+            <input type="file" id="file-upload" accept="*/*">
             
-            <button class="btn-play" id="btn-play">
+            <button class="btn-play" id="btn-toggle">
                 <i class="fas fa-play"></i>
             </button>
         </div>
     </div>
 
-    <div id="canvas-container"></div>
+    <div id="canvas-wrapper"></div>
 
-    <audio id="audio-element" playsinline webkit-playsinline></audio>
+    <audio id="audio-source" playsinline webkit-playsinline crossorigin="anonymous"></audio>
 
     <script type="module">
-        // Importações diretas
-        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-        import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-        import { createNoise3D } from 'https://unpkg.com/simplex-noise@4.0.1/dist/esm/simplex-noise.js';
+        // Importa Three.js (versão estável via CDNJS)
+        import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.128.0/examples/jsm/controls/OrbitControls.js';
 
-        // --- Configuração ---
-        const noise3D = createNoise3D();
-        const SPHERE_RADIUS = 18;
-        
-        // --- Variáveis ---
+        // --- SISTEMA DE LOG DE ERROS ---
+        window.onerror = function(message, source, lineno, colno, error) {
+            const consoleDiv = document.getElementById('debug-console');
+            consoleDiv.style.display = 'block';
+            consoleDiv.innerHTML += `[ERRO] ${message} na linha ${lineno}<br>`;
+        };
+
+        // --- VARIÁVEIS GLOBAIS ---
+        let audioContext, analyser, sourceNode, dataArray;
         let scene, camera, renderer, sphere, controls;
-        let audioCtx, analyser, source, dataArray;
-        let originalPositions;
-        let isAudioSetup = false;
-        
-        // Suavização da animação
-        let currentBass = 0; // Valor atual suavizado
-        
+        let isAudioInitialized = false;
+        let originalPositions = [];
+
         // Elementos DOM
-        const btnStart = document.getElementById('btn-start');
-        const overlay = document.getElementById('overlay');
-        const uiLayer = document.getElementById('ui-layer');
-        const audioEl = document.getElementById('audio-element');
-        const fileInput = document.getElementById('file-input');
-        const btnPlay = document.getElementById('btn-play');
-        const playIcon = btnPlay.querySelector('i');
+        const btnInit = document.getElementById('btn-init');
+        const startScreen = document.getElementById('start-screen');
+        const playerUi = document.getElementById('player-ui');
+        const audioEl = document.getElementById('audio-source');
+        const fileInput = document.getElementById('file-upload');
+        const btnToggle = document.getElementById('btn-toggle');
+        const toggleIcon = btnToggle.querySelector('i');
+        const trackTitle = document.getElementById('track-title');
 
-        // --- 1. INICIALIZAÇÃO DO 3D (Imediata) ---
+        // --- PASSO 1: INICIALIZAÇÃO DO 3D (Imediata) ---
         function init3D() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x050505);
-            scene.fog = new THREE.FogExp2(0x050505, 0.015);
-
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-            // Ajuste de distância para mobile
-            camera.position.z = window.innerWidth < 768 ? 110 : 80;
-
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Otimização
-            document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-            controls = new OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.enablePan = false;
-
-            // Luzes
-            const ambientLight = new THREE.AmbientLight(0x404040, 2);
-            scene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-            dirLight.position.set(20, 20, 20);
-            scene.add(dirLight);
-
-            // A Esfera
-            const geometry = new THREE.IcosahedronGeometry(SPHERE_RADIUS, 30); // Detalhe 30
-            const material = new THREE.MeshStandardMaterial({
-                color: 0x00ff88,
-                wireframe: true,
-                roughness: 0.2,
-                metalness: 0.8
-            });
-
-            sphere = new THREE.Mesh(geometry, material);
-            scene.add(sphere);
-
-            originalPositions = geometry.attributes.position.array.slice();
-
-            // Resize
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-
-            // Começa o loop imediatamente
-            animate();
-        }
-
-        // --- 2. CONFIGURAÇÃO DE ÁUDIO (Só no clique) ---
-        function setupAudio() {
-            if (isAudioSetup) return;
-
             try {
-                const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioCtx = new AudioContext();
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x050505);
                 
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 256;
-                dataArray = new Uint8Array(analyser.frequencyBinCount);
-                
-                // Conecta o elemento HTML Audio
-                source = audioCtx.createMediaElementSource(audioEl);
-                source.connect(analyser);
-                analyser.connect(audioCtx.destination);
+                // Câmera
+                camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+                // Ajusta distância para mobile vs desktop
+                camera.position.z = window.innerWidth < 768 ? 90 : 60;
 
-                isAudioSetup = true;
+                // Render
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                document.getElementById('canvas-wrapper').appendChild(renderer.domElement);
+
+                // Luzes
+                const ambientLight = new THREE.AmbientLight(0x404040, 2);
+                scene.add(ambientLight);
+                const pointLight = new THREE.PointLight(0x00ff88, 1.5);
+                pointLight.position.set(20, 20, 20);
+                scene.add(pointLight);
+
+                // Esfera (Icosaedro)
+                const geometry = new THREE.IcosahedronGeometry(16, 4); // Radius 16, Detail 4
+                const material = new THREE.MeshStandardMaterial({
+                    color: 0x00ff88,
+                    wireframe: true,
+                    roughness: 0.1,
+                    metalness: 0.5
+                });
+
+                sphere = new THREE.Mesh(geometry, material);
+                scene.add(sphere);
+
+                // Salva posições originais para animação
+                const posAttribute = geometry.attributes.position;
+                for (let i = 0; i < posAttribute.count; i++) {
+                    originalPositions.push({
+                        x: posAttribute.getX(i),
+                        y: posAttribute.getY(i),
+                        z: posAttribute.getZ(i)
+                    });
+                }
+
+                // Controles de órbita
+                controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.enablePan = false;
+
+                // Resize Listener
+                window.addEventListener('resize', () => {
+                    camera.aspect = window.innerWidth / window.innerHeight;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(window.innerWidth, window.innerHeight);
+                });
+
+                animate(); // Começa o loop
+
             } catch (e) {
-                console.error("Erro audio:", e);
+                alert("Erro ao iniciar 3D: " + e.message);
             }
         }
 
-        // --- 3. LOOP DE ANIMAÇÃO ---
+        // --- PASSO 2: ÁUDIO (Só ativa no clique) ---
+        function initAudio() {
+            if (isAudioInitialized) return;
+
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioContext = new AudioContext();
+
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256; // Equilíbrio performance/visual
+            dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            // Conecta o elemento <audio> do HTML ao WebAudio
+            sourceNode = audioContext.createMediaElementSource(audioEl);
+            sourceNode.connect(analyser);
+            analyser.connect(audioContext.destination);
+
+            isAudioInitialized = true;
+        }
+
+        // --- PASSO 3: LOOP DE ANIMAÇÃO ---
         function animate() {
             requestAnimationFrame(animate);
+            const time = performance.now() * 0.001; // Tempo em segundos
 
-            const time = performance.now();
-            let targetBass = 0;
+            let bass = 0;
+            let mid = 0;
 
-            // Se o áudio estiver configurado e tocando, pega os dados
-            if (isAudioSetup && analyser && !audioEl.paused) {
+            // Se áudio está rodando, pega dados
+            if (isAudioInitialized && analyser && !audioEl.paused) {
                 analyser.getByteFrequencyData(dataArray);
                 
-                // Média dos graves (primeiros 15 bins)
-                let sum = 0;
-                for(let i = 0; i < 15; i++) sum += dataArray[i];
-                targetBass = (sum / 15) / 255; // Normalizado 0.0 a 1.0
+                // Calcula média dos graves (primeiros indices)
+                let bassSum = 0;
+                for(let i=0; i<10; i++) bassSum += dataArray[i];
+                bass = (bassSum / 10) / 255; // 0.0 a 1.0
+
+                // Calcula médios para detalhe
+                let midSum = 0;
+                for(let i=10; i<50; i++) midSum += dataArray[i];
+                mid = (midSum / 40) / 255;
             }
 
-            // Suavização (Lerp) para não ficar piscando loucamente
-            // Se targetBass for 0 (música parada), ele desce suavemente
-            currentBass += (targetBass - currentBass) * 0.1;
-
-            // --- A MÁGICA VISUAL ---
+            // -- EFEITOS VISUAIS --
             
-            // 1. Cor: Muda suavemente. Se parado = Verde. Se Batida = Azul/Roxo
-            // HSL: Verde é +- 0.3. Azul é 0.6.
-            const hue = 0.33 + (currentBass * 0.3); 
-            const light = 0.5 + (currentBass * 0.2); // Brilha mais na batida
-            sphere.material.color.setHSL(hue, 1.0, light);
+            // 1. Cor Dinâmica
+            const hue = 0.35 + (bass * 0.3); // Verde base -> Azulado
+            sphere.material.color.setHSL(hue, 1.0, 0.5);
+
+            // 2. Rotação
+            sphere.rotation.y += 0.003 + (bass * 0.01);
+            sphere.rotation.z += 0.001;
+
+            // 3. Deformação Matemática (Sem Noise library)
+            const posAttribute = sphere.geometry.attributes.position;
             
-            // 2. Rotação: Lenta se parado, rápida se batendo
-            const rotationSpeed = 0.002 + (currentBass * 0.01);
-            sphere.rotation.y += rotationSpeed;
-            sphere.rotation.z += rotationSpeed * 0.5;
+            // Parâmetros da onda
+            const waveHeight = 1.5 + (bass * 8); // Altura da explosão
+            const frequency = 2.0;
+            const speed = 2.0;
 
-            // 3. Deformação dos Vértices
-            const pos = sphere.geometry.attributes.position;
-            const v = new THREE.Vector3();
-
-            // Define a intensidade do efeito
-            // Se currentBass ~ 0, temos uma respiração leve (0.2)
-            // Se currentBass > 0, temos explosão
-            const intensity = 0.3 + (currentBass * 10.0); 
-            const noiseScale = 1.5 + (currentBass * 2.0);
-
-            for (let i = 0; i < pos.count; i++) {
-                const ox = originalPositions[i*3];
-                const oy = originalPositions[i*3+1];
-                const oz = originalPositions[i*3+2];
-
-                v.set(ox, oy, oz);
-                v.normalize();
-
-                // Noise evolui com o tempo
-                const n = noise3D(
-                    v.x + time * 0.0005,
-                    v.y + time * 0.0005,
-                    v.z + time * 0.0005
-                );
-
-                // Cálculo do raio final
-                let dist = SPHERE_RADIUS;
+            for (let i = 0; i < posAttribute.count; i++) {
+                const orig = originalPositions[i];
                 
-                // Adiciona "água" (noise)
-                dist += n * intensity;
+                // Cria um padrão de onda complexo usando Seno e Cosseno
+                // Muito mais leve que Perlin Noise
+                const wave = Math.sin(orig.x * 0.2 + time * speed) + 
+                             Math.cos(orig.y * 0.2 + time * speed) + 
+                             Math.sin(orig.z * 0.2 + time * speed);
+                
+                // Normaliza a onda (aprox -1.5 a 1.5) e escala
+                const displacement = (wave * 0.5) * waveHeight;
+                
+                // Adiciona um pulso geral (batida do coração)
+                const pulse = bass * 3.0;
 
-                // Adiciona pulso geral (cresce a bola inteira na batida)
-                dist += currentBass * 3;
+                // Normaliza vetor de posição para aplicar deslocamento
+                const length = Math.sqrt(orig.x*orig.x + orig.y*orig.y + orig.z*orig.z);
+                const nx = orig.x / length;
+                const ny = orig.y / length;
+                const nz = orig.z / length;
 
-                v.multiplyScalar(dist);
-                pos.setXYZ(i, v.x, v.y, v.z);
+                // Raio base (16) + Deslocamento
+                const finalR = 16 + displacement + pulse;
+
+                posAttribute.setXYZ(i, nx * finalR, ny * finalR, nz * finalR);
             }
-
-            sphere.geometry.attributes.position.needsUpdate = true;
-            sphere.geometry.computeVertexNormals();
+            
+            posAttribute.needsUpdate = true;
 
             controls.update();
             renderer.render(scene, camera);
         }
 
-        // --- EVENTOS ---
+        // --- EVENT LISTENERS ---
 
-        // Botão Inicial (Overlay)
-        btnStart.addEventListener('click', () => {
-            setupAudio(); // Cria o contexto
-            if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-
-            // UI Transition
-            overlay.style.opacity = '0';
-            setTimeout(() => { overlay.style.display = 'none'; }, 500);
-            uiLayer.style.display = 'flex';
+        // 1. Botão Iniciar (Overlay)
+        btnInit.addEventListener('click', () => {
+            initAudio();
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+            
+            // Transição UI
+            startScreen.style.opacity = 0;
+            setTimeout(() => {
+                startScreen.style.display = 'none';
+                playerUi.style.display = 'flex';
+            }, 500);
         });
 
-        // Upload
+        // 2. Upload de Arquivo
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
+            // Usa createObjectURL para performance no mobile
             const url = URL.createObjectURL(file);
             audioEl.src = url;
-            document.getElementById('track-name').innerText = file.name;
+            trackTitle.innerText = file.name;
 
-            // Tentar tocar
+            // Tenta autoplay
             audioEl.play()
-                .then(() => updateBtn(true))
+                .then(() => {
+                    toggleIcon.className = 'fas fa-pause';
+                })
                 .catch(err => {
-                    console.log("Play bloqueado, usuário precisa clicar no play");
-                    updateBtn(false);
+                    console.log("Autoplay bloqueado. Usuário deve dar play.");
+                    toggleIcon.className = 'fas fa-play';
                 });
         });
 
-        // Play/Pause
-        btnPlay.addEventListener('click', () => {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+        // 3. Play / Pause
+        btnToggle.addEventListener('click', () => {
+            // Garante que o contexto está rodando (fix iOS)
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
 
             if (audioEl.paused) {
                 audioEl.play();
-                updateBtn(true);
+                toggleIcon.className = 'fas fa-pause';
             } else {
                 audioEl.pause();
-                updateBtn(false);
+                toggleIcon.className = 'fas fa-play';
             }
         });
 
-        function updateBtn(isPlaying) {
-            if (isPlaying) {
-                playIcon.className = 'fas fa-pause';
-            } else {
-                playIcon.className = 'fas fa-play';
-            }
-        }
-
-        // Inicia o 3D assim que carregar a página
+        // Inicia o Canvas 3D assim que carregar a página
         init3D();
 
     </script>
