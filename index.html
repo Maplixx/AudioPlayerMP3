@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Visualizador 3D Corrigido</title>
+    <title>Visualizador 3D Final</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -12,173 +12,332 @@
             margin: 0;
             background-color: #000;
             color: white;
-            font-family: sans-serif;
+            font-family: 'Segoe UI', sans-serif;
             overflow: hidden;
         }
 
-        /* O TRUQUE: O Canvas começa "fantasma" (cliques passam direto por ele) */
+        /* O Canvas fica no fundo (z-index 0) */
         #canvas-container {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            pointer-events: none; /* ESSA LINHA CONSERTA O PROBLEMA */
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 0;
+            /* Importante: permite toque para girar a câmera */
+            touch-action: none; 
         }
 
-        /* O Overlay tem que ter z-index máximo */
-        #overlay-start {
+        /* TELA INICIAL (Overlay) */
+        #overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0,0,0,0.95);
-            z-index: 99999; /* Z-index absurdo para garantir */
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); /* Fundo semi-transparente para ver a esfera */
+            z-index: 999;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            touch-action: auto; /* Garante que o toque funciona aqui */
+            backdrop-filter: blur(5px);
+            transition: opacity 0.5s;
         }
-        
-        .start-btn {
-            padding: 30px 60px; /* Botão ainda maior */
-            border: 3px solid #00ff88;
-            background: #000;
+
+        .btn-big {
+            padding: 20px 50px;
+            border: 2px solid #00ff88;
+            background: rgba(0,0,0,0.5);
             color: #00ff88;
             font-size: 1.2rem;
-            font-weight: bold;
             border-radius: 50px;
             text-transform: uppercase;
             cursor: pointer;
-            /* Garante que o botão receba o clique */
-            pointer-events: auto; 
+            font-weight: bold;
+            box-shadow: 0 0 20px rgba(0,255,136,0.2);
         }
-        
-        .start-btn:active { background: #00ff88; color: black; }
+        .btn-big:active { background: #00ff88; color: black; }
 
-        /* UI do Player */
-        #ui-container {
+        /* PLAYER UI */
+        #ui-layer {
             position: absolute;
-            bottom: 30px;
-            left: 50%;
+            bottom: 30px; left: 50%;
             transform: translateX(-50%);
-            z-index: 100;
-            width: 90%;
-            max-width: 400px;
-            background: rgba(30,30,30,0.9);
+            width: 90%; max-width: 400px;
+            background: rgba(20, 20, 20, 0.85);
+            border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 20px;
-            display: none;
+            z-index: 10;
+            display: none; /* Começa oculto */
             flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            pointer-events: auto; /* UI clicável */
+            gap: 10px;
+            pointer-events: auto;
         }
 
-        #track-name { font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; text-align: center; }
-        .controls { display: flex; width: 100%; justify-content: space-around; align-items: center; }
+        .controls { display: flex; justify-content: space-between; align-items: center; width: 100%; }
         
-        .btn-file { background: #333; padding: 15px 25px; border-radius: 10px; display: flex; gap: 10px; align-items: center; cursor: pointer; }
-        .btn-play { width: 60px; height: 60px; border-radius: 50%; background: #00ff88; border: none; color: black; font-size: 1.5rem; display: flex; justify-content: center; align-items: center; cursor: pointer; }
+        .btn-file {
+            background: #333; color: white; padding: 12px 20px;
+            border-radius: 30px; cursor: pointer; font-size: 0.9rem;
+            display: flex; align-items: center; gap: 8px;
+        }
         
+        .btn-play {
+            width: 55px; height: 55px; border-radius: 50%;
+            background: #00ff88; border: none; font-size: 1.2rem;
+            display: flex; justify-content: center; align-items: center;
+            cursor: pointer; color: #000;
+        }
+
+        #track-name {
+            text-align: center; font-size: 0.9rem; 
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            color: #ddd; margin-bottom: 5px;
+        }
+
+        /* Input invisível */
         #file-input { display: none; }
     </style>
 </head>
 <body>
 
-    <div id="overlay-start">
-        <button class="start-btn" id="btn-iniciar">TOQUE PARA INICIAR</button>
-        <p style="margin-top: 15px; color: #aaa;">Necessário para áudio</p>
+    <div id="overlay">
+        <button class="btn-big" id="btn-start">Iniciar Visualizador</button>
+        <p style="margin-top: 15px; opacity: 0.7; font-size: 0.8rem;">Toque para ativar o som</p>
     </div>
 
-    <div id="ui-container">
-        <div id="track-name">Selecione um arquivo...</div>
+    <div id="ui-layer">
+        <div id="track-name">Escolha uma música ou vídeo...</div>
         <div class="controls">
-            <label for="file-input" class="btn-file"><i class="fas fa-folder"></i> Arquivos</label>
+            <label for="file-input" class="btn-file">
+                <i class="fas fa-music"></i> Arquivos
+            </label>
             <input type="file" id="file-input" accept="*/*">
-            <button class="btn-play" id="btn-play"><i class="fas fa-play"></i></button>
+            
+            <button class="btn-play" id="btn-play">
+                <i class="fas fa-play"></i>
+            </button>
         </div>
     </div>
 
     <div id="canvas-container"></div>
-    
+
     <audio id="audio-element" playsinline webkit-playsinline></audio>
 
-    <script>
-        // --- LÓGICA DE UI (Separada e Segura) ---
-        const overlay = document.getElementById('overlay-start');
-        const ui = document.getElementById('ui-container');
-        const btnIniciar = document.getElementById('btn-iniciar');
-        const btnPlay = document.getElementById('btn-play');
-        const fileInput = document.getElementById('file-input');
-        const audioEl = document.getElementById('audio-element');
-        const canvasDiv = document.getElementById('canvas-container');
-        
-        let audioContext, analyser, source, dataArray;
-        let appRodando = false;
+    <script type="module">
+        // Importações diretas
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+        import { createNoise3D } from 'https://unpkg.com/simplex-noise@4.0.1/dist/esm/simplex-noise.js';
 
-        // Função ULTRA segura para iniciar
-        function iniciarSistema() {
+        // --- Configuração ---
+        const noise3D = createNoise3D();
+        const SPHERE_RADIUS = 18;
+        
+        // --- Variáveis ---
+        let scene, camera, renderer, sphere, controls;
+        let audioCtx, analyser, source, dataArray;
+        let originalPositions;
+        let isAudioSetup = false;
+        
+        // Suavização da animação
+        let currentBass = 0; // Valor atual suavizado
+        
+        // Elementos DOM
+        const btnStart = document.getElementById('btn-start');
+        const overlay = document.getElementById('overlay');
+        const uiLayer = document.getElementById('ui-layer');
+        const audioEl = document.getElementById('audio-element');
+        const fileInput = document.getElementById('file-input');
+        const btnPlay = document.getElementById('btn-play');
+        const playIcon = btnPlay.querySelector('i');
+
+        // --- 1. INICIALIZAÇÃO DO 3D (Imediata) ---
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x050505);
+            scene.fog = new THREE.FogExp2(0x050505, 0.015);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            // Ajuste de distância para mobile
+            camera.position.z = window.innerWidth < 768 ? 110 : 80;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Otimização
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.enablePan = false;
+
+            // Luzes
+            const ambientLight = new THREE.AmbientLight(0x404040, 2);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+            dirLight.position.set(20, 20, 20);
+            scene.add(dirLight);
+
+            // A Esfera
+            const geometry = new THREE.IcosahedronGeometry(SPHERE_RADIUS, 30); // Detalhe 30
+            const material = new THREE.MeshStandardMaterial({
+                color: 0x00ff88,
+                wireframe: true,
+                roughness: 0.2,
+                metalness: 0.8
+            });
+
+            sphere = new THREE.Mesh(geometry, material);
+            scene.add(sphere);
+
+            originalPositions = geometry.attributes.position.array.slice();
+
+            // Resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // Começa o loop imediatamente
+            animate();
+        }
+
+        // --- 2. CONFIGURAÇÃO DE ÁUDIO (Só no clique) ---
+        function setupAudio() {
+            if (isAudioSetup) return;
+
             try {
-                // 1. Cria AudioContext (obrigatório gesto do usuário)
                 const AudioContext = window.AudioContext || window.webkitAudioContext;
-                audioContext = new AudioContext();
+                audioCtx = new AudioContext();
                 
-                // 2. Conecta o elemento Audio ao contexto
-                analyser = audioContext.createAnalyser();
+                analyser = audioCtx.createAnalyser();
                 analyser.fftSize = 256;
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
                 
-                source = audioContext.createMediaElementSource(audioEl);
+                // Conecta o elemento HTML Audio
+                source = audioCtx.createMediaElementSource(audioEl);
                 source.connect(analyser);
-                analyser.connect(audioContext.destination);
+                analyser.connect(audioCtx.destination);
 
-                // 3. UI Updates
-                overlay.style.display = 'none';
-                ui.style.display = 'flex';
-                
-                // 4. AGORA sim ativamos os cliques no 3D (para poder girar a bola)
-                canvasDiv.style.pointerEvents = 'auto'; 
-                
-                appRodando = true;
-                
-                // Tenta iniciar o 3D se o módulo já carregou
-                if(window.start3D) window.start3D();
-
+                isAudioSetup = true;
             } catch (e) {
-                alert("Erro: " + e.message);
+                console.error("Erro audio:", e);
             }
         }
 
-        // Adiciona listener de clique e toque para garantir
-        btnIniciar.addEventListener('click', iniciarSistema);
-        btnIniciar.addEventListener('touchstart', (e) => {
-            e.preventDefault(); // Previne clique fantasma duplo
-            iniciarSistema();
+        // --- 3. LOOP DE ANIMAÇÃO ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+            let targetBass = 0;
+
+            // Se o áudio estiver configurado e tocando, pega os dados
+            if (isAudioSetup && analyser && !audioEl.paused) {
+                analyser.getByteFrequencyData(dataArray);
+                
+                // Média dos graves (primeiros 15 bins)
+                let sum = 0;
+                for(let i = 0; i < 15; i++) sum += dataArray[i];
+                targetBass = (sum / 15) / 255; // Normalizado 0.0 a 1.0
+            }
+
+            // Suavização (Lerp) para não ficar piscando loucamente
+            // Se targetBass for 0 (música parada), ele desce suavemente
+            currentBass += (targetBass - currentBass) * 0.1;
+
+            // --- A MÁGICA VISUAL ---
+            
+            // 1. Cor: Muda suavemente. Se parado = Verde. Se Batida = Azul/Roxo
+            // HSL: Verde é +- 0.3. Azul é 0.6.
+            const hue = 0.33 + (currentBass * 0.3); 
+            const light = 0.5 + (currentBass * 0.2); // Brilha mais na batida
+            sphere.material.color.setHSL(hue, 1.0, light);
+            
+            // 2. Rotação: Lenta se parado, rápida se batendo
+            const rotationSpeed = 0.002 + (currentBass * 0.01);
+            sphere.rotation.y += rotationSpeed;
+            sphere.rotation.z += rotationSpeed * 0.5;
+
+            // 3. Deformação dos Vértices
+            const pos = sphere.geometry.attributes.position;
+            const v = new THREE.Vector3();
+
+            // Define a intensidade do efeito
+            // Se currentBass ~ 0, temos uma respiração leve (0.2)
+            // Se currentBass > 0, temos explosão
+            const intensity = 0.3 + (currentBass * 10.0); 
+            const noiseScale = 1.5 + (currentBass * 2.0);
+
+            for (let i = 0; i < pos.count; i++) {
+                const ox = originalPositions[i*3];
+                const oy = originalPositions[i*3+1];
+                const oz = originalPositions[i*3+2];
+
+                v.set(ox, oy, oz);
+                v.normalize();
+
+                // Noise evolui com o tempo
+                const n = noise3D(
+                    v.x + time * 0.0005,
+                    v.y + time * 0.0005,
+                    v.z + time * 0.0005
+                );
+
+                // Cálculo do raio final
+                let dist = SPHERE_RADIUS;
+                
+                // Adiciona "água" (noise)
+                dist += n * intensity;
+
+                // Adiciona pulso geral (cresce a bola inteira na batida)
+                dist += currentBass * 3;
+
+                v.multiplyScalar(dist);
+                pos.setXYZ(i, v.x, v.y, v.z);
+            }
+
+            sphere.geometry.attributes.position.needsUpdate = true;
+            sphere.geometry.computeVertexNormals();
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- EVENTOS ---
+
+        // Botão Inicial (Overlay)
+        btnStart.addEventListener('click', () => {
+            setupAudio(); // Cria o contexto
+            if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+
+            // UI Transition
+            overlay.style.opacity = '0';
+            setTimeout(() => { overlay.style.display = 'none'; }, 500);
+            uiLayer.style.display = 'flex';
         });
 
         // Upload
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if(!file) return;
-            
+            if (!file) return;
+
             const url = URL.createObjectURL(file);
             audioEl.src = url;
             document.getElementById('track-name').innerText = file.name;
-            
+
+            // Tentar tocar
             audioEl.play()
                 .then(() => updateBtn(true))
-                .catch(e => console.log("Autoplay barrado, clique no play"));
+                .catch(err => {
+                    console.log("Play bloqueado, usuário precisa clicar no play");
+                    updateBtn(false);
+                });
         });
 
         // Play/Pause
         btnPlay.addEventListener('click', () => {
-            if(audioContext && audioContext.state === 'suspended') audioContext.resume();
-            
-            if(audioEl.paused) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            if (audioEl.paused) {
                 audioEl.play();
                 updateBtn(true);
             } else {
@@ -187,105 +346,17 @@
             }
         });
 
-        function updateBtn(playing) {
-            const icon = btnPlay.querySelector('i');
-            icon.className = playing ? 'fas fa-pause' : 'fas fa-play';
-        }
-
-        // Exportar dados para o módulo 3D ler
-        window.getAudioData = () => {
-            if(!appRodando || !analyser) return 0;
-            analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for(let i=0; i<10; i++) sum += dataArray[i];
-            return (sum / 10) / 255;
-        };
-    </script>
-
-    <script type="module">
-        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-        import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-        import { createNoise3D } from 'https://unpkg.com/simplex-noise@4.0.1/dist/esm/simplex-noise.js';
-
-        const noise3D = createNoise3D();
-        let scene, camera, renderer, sphere, controls;
-        let originalPositions;
-
-        window.start3D = function() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x000000);
-
-            camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.position.z = window.innerWidth < 768 ? 100 : 70;
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-            controls = new OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-
-            // Luzes
-            scene.add(new THREE.AmbientLight(0x404040, 3));
-            const dl = new THREE.DirectionalLight(0xffffff, 2);
-            dl.position.set(10,10,10);
-            scene.add(dl);
-
-            // Esfera
-            const geo = new THREE.IcosahedronGeometry(18, 30);
-            const mat = new THREE.MeshStandardMaterial({
-                color: 0x00ff88, wireframe: true, roughness: 0.1, metalness: 0.5
-            });
-            sphere = new THREE.Mesh(geo, mat);
-            scene.add(sphere);
-            originalPositions = geo.attributes.position.array.slice();
-
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth/window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-
-            animate();
-        };
-
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            const time = performance.now();
-            // Pega o volume direto da função global
-            const bass = window.getAudioData ? window.getAudioData() : 0;
-
-            // Cor
-            sphere.material.color.setHSL(0.3 + (bass * 0.4), 1.0, 0.5);
-
-            // Deformação
-            const pos = sphere.geometry.attributes.position;
-            const v = new THREE.Vector3();
-
-            for(let i=0; i<pos.count; i++){
-                const ox = originalPositions[i*3];
-                const oy = originalPositions[i*3+1];
-                const oz = originalPositions[i*3+2];
-                v.set(ox, oy, oz);
-                v.normalize();
-
-                const n = noise3D(v.x+time*0.0005, v.y+time*0.0005, v.z+time*0.0005);
-                let dist = 18 + (n*2);
-                if(bass > 0) dist += bass*10*(n+0.5);
-
-                v.multiplyScalar(dist);
-                pos.setXYZ(i, v.x, v.y, v.z);
+        function updateBtn(isPlaying) {
+            if (isPlaying) {
+                playIcon.className = 'fas fa-pause';
+            } else {
+                playIcon.className = 'fas fa-play';
             }
-            pos.needsUpdate = true;
-            sphere.rotation.y += 0.002;
-            
-            controls.update();
-            renderer.render(scene, camera);
         }
 
-        // Se o usuário já clicou antes do módulo carregar:
-        if(window.appRodando) window.start3D();
+        // Inicia o 3D assim que carregar a página
+        init3D();
+
     </script>
 </body>
 </html>
