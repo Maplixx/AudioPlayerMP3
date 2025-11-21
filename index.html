@@ -3,39 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Visualizador V7 Dark</title>
+    <title>Visualizador V9 Final</title>
+    
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <link rel="stylesheet" href="style.css">
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
     <div id="start-screen">
-        <div class="logo-area">
-            <i class="fas fa-wave-square"></i>
-            <h1>AUDIO VISUALIZER</h1>
-        </div>
-        <button id="btn-init" class="btn-neon">INICIAR SISTEMA</button>
+        <i class="fas fa-wave-square logo"></i>
+        <button id="btn-init" class="btn-neon">INICIAR</button>
+        <p class="hint">Toque para ativar o som</p>
     </div>
 
     <div id="player-ui" class="ui-hidden">
-        <div class="track-info-container">
-            <div id="track-name">Selecione uma música...</div>
-        </div>
-        
-        <div class="controls-wrapper">
-            <label for="file-input" class="btn-control secondary">
-                <i class="fas fa-folder-open"></i>
-            </label>
+        <div id="track-name">Selecione um arquivo...</div>
+        <div class="controls">
+            <label for="file-input" class="btn-icon"><i class="fas fa-folder-open"></i></label>
             <input type="file" id="file-input" accept="*/*">
-
-            <button id="btn-play" class="btn-control primary">
-                <i class="fas fa-play"></i>
-            </button>
+            
+            <button id="btn-play" class="btn-play-big"><i class="fas fa-play"></i></button>
         </div>
     </div>
 
-    <div id="canvas-container"></div>
+    <div id="canvas-container" class="blur-mode"></div>
 
     <audio id="audio-source" playsinline webkit-playsinline crossorigin="anonymous"></audio>
 
